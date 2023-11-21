@@ -208,7 +208,7 @@ private[spark] class ExecutorAllocationManager(
       // decommissioning without a shuffle service.
       if (conf.get(config.DYN_ALLOCATION_SHUFFLE_TRACKING_ENABLED) ||
           (decommissionEnabled &&
-            conf.get(config.STORAGE_DECOMMISSION_SHUFFLE_BLOCKS_ENABLED))) {
+            conf.get(config.STORAGE_DECOMMISSION_SHUFFLE_BLOCKS_ENABLED) || conf.isRssEnable())) {
         logWarning("Dynamic allocation without a shuffle service is an experimental feature.")
       } else if (!testing) {
         throw new SparkException("Dynamic allocation of executors requires the external " +

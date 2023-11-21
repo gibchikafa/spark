@@ -97,6 +97,8 @@ class SparkConf(loadDefaults: Boolean) extends Cloneable with Logging with Seria
     this
   }
 
+  def isRssEnable(): Boolean = get("spark.shuffle.manager", "sort").contains("RssShuffleManager")
+
   private[spark] def set[T](entry: ConfigEntry[T], value: T): SparkConf = {
     set(entry.key, entry.stringConverter(value))
     this
