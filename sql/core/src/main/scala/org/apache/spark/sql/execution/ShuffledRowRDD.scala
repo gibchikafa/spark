@@ -174,6 +174,9 @@ class ShuffledRowRDD(
   }
 
   override def getPreferredLocations(partition: Partition): Seq[String] = {
+    if (conf.isRssEnable()) {
+      Nil
+    }
     val tracker = SparkEnv.get.mapOutputTracker.asInstanceOf[MapOutputTrackerMaster]
     partition.asInstanceOf[ShuffledRowRDDPartition].spec match {
       case CoalescedPartitionSpec(startReducerIndex, endReducerIndex, _) =>
