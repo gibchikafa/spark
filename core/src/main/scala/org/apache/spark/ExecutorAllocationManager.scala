@@ -204,6 +204,8 @@ private[spark] class ExecutorAllocationManager(
         s"s${DYN_ALLOCATION_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT.key} must be > 0!")
     }
     if (!conf.get(config.SHUFFLE_SERVICE_ENABLED)) {
+      logInfo("spark.shuffle.manager is " + conf.get(config.SHUFFLE_MANAGER) +
+        ". Rss enable is " + conf.isRssEnable())
       if (conf.isRssEnable()) {
         logInfo("Dynamic allocation will use remote shuffle service")
       } else if (conf.get(config.DYN_ALLOCATION_SHUFFLE_TRACKING_ENABLED)) {
