@@ -159,19 +159,23 @@ class ShuffledRowRDD(
   }
 
   override def getPreferredLocations(partition: Partition): Seq[String] = {
-    val tracker = SparkEnv.get.mapOutputTracker.asInstanceOf[MapOutputTrackerMaster]
-    partition.asInstanceOf[ShuffledRowRDDPartition].spec match {
-      case CoalescedPartitionSpec(startReducerIndex, endReducerIndex) =>
-        // TODO order by partition size.
-        startReducerIndex.until(endReducerIndex).flatMap { reducerIndex =>
-          tracker.getPreferredLocationsForShuffle(dependency, reducerIndex)
-        }
+    if (!conf.isRssEnable()) {
+      val tracker = SparkEnv.get.mapOutputTracker.asInstanceOf[MapOutputTrackerMaster]
+      partition.asInstanceOf[ShuffledRowRDDPartition].spec match {
+        case CoalescedPartitionSpec(startReducerIndex, endReducerIndex) =>
+          // TODO order by partition size.
+          startReducerIndex.until(endReducerIndex).flatMap { reducerIndex =>
+            tracker.getPreferredLocationsForShuffle(dependency, reducerIndex)
+          }
 
-      case PartialReducerPartitionSpec(_, startMapIndex, endMapIndex, _) =>
-        tracker.getMapLocation(dependency, startMapIndex, endMapIndex)
+        case PartialReducerPartitionSpec(_, startMapIndex, endMapIndex, _) =>
+          tracker.getMapLocation(dependency, startMapIndex, endMapIndex)
 
-      case PartialMapperPartitionSpec(mapIndex, _, _) =>
-        tracker.getMapLocation(dependency, mapIndex, mapIndex + 1)
+        case PartialMapperPartitionSpec(mapIndex, _, _) =>
+          tracker.getMapLocation(dependency, mapIndex, mapIndex + 1)
+      }
+    } else {
+      Nil
     }
   }
 
