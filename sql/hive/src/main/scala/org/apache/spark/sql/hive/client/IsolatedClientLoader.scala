@@ -108,8 +108,9 @@ private[hive] object IsolatedClientLoader extends Logging {
       case "2.3" => hive.v2_3
       case "3.0" => hive.v3_0
       case "3.1" => hive.v3_1
-      case _ => throw new UnsupportedOperationException(s"Unsupported Hive Metastore version ($version). " +
-          s"Please set ${HiveUtils.HIVE_METASTORE_VERSION.key} with a valid version.")
+      case _ => throw new UnsupportedOperationException(s"Unsupported " +
+        s"Hive Metastore version ($version). Please set " +
+        s"${HiveUtils.HIVE_METASTORE_VERSION.key} with a valid version.")
     }
   }
 
