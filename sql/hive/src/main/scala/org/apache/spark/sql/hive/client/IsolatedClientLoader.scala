@@ -89,23 +89,28 @@ private[hive] object IsolatedClientLoader extends Logging {
   }
 
   def hiveVersion(version: String): HiveVersion = {
-    VersionUtils.majorMinorPatchVersion(version).flatMap {
-      case (12, _, _) | (0, 12, _) => Some(hive.v12)
-      case (13, _, _) | (0, 13, _) => Some(hive.v13)
-      case (14, _, _) | (0, 14, _) => Some(hive.v14)
-      case (1, 0, _) => Some(hive.v1_0)
-      case (1, 1, _) => Some(hive.v1_1)
-      case (1, 2, _) => Some(hive.v1_2)
-      case (2, 0, _) => Some(hive.v2_0)
-      case (2, 1, _) => Some(hive.v2_1)
-      case (2, 2, _) => Some(hive.v2_2)
-      case (2, 3, _) => Some(hive.v2_3)
-      case (3, 0, _) => Some(hive.v3_0)
-      case (3, 1, _) => Some(hive.v3_1)
-      case _ => None
-    }.getOrElse {
-      throw QueryExecutionErrors.unsupportedHiveMetastoreVersionError(
-        version, HiveUtils.HIVE_METASTORE_VERSION.key)
+    def extractMajorMinorVersion(version: String): String = {
+      val parts = version.split("\\.")
+      if (parts.length >= 2) parts(0) + "." + parts(1) else parts(0)
+    }
+
+    val majorMinorVersion = extractMajorMinorVersion(version)
+    majorMinorVersion match {
+      case "0.12" => hive.v12
+      case "0.13" => hive.v13
+      case "0.14" => hive.v14
+      case "1.0" => hive.v1_0
+      case "1.1" => hive.v1_1
+      case "1.2" => hive.v1_2
+      case "2.0" => hive.v2_0
+      case "2.1" => hive.v2_1
+      case "2.2" => hive.v2_2
+      case "2.3" => hive.v2_3
+      case "3.0" => hive.v3_0
+      case "3.1" => hive.v3_1
+      case _ => throw new UnsupportedOperationException(s"Unsupported " +
+        s"Hive Metastore version ($version). Please set " +
+          s"${HiveUtils.HIVE_METASTORE_VERSION.key} with a valid version.")
     }
   }
 
