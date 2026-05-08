@@ -79,7 +79,7 @@ class OrcV1FilterSuite extends OrcFilterSuite {
       (implicit df: DataFrame): Unit = {
     def checkLogicalOperator(filter: SearchArgument) = {
       // HIVE-24458 changes toString format and provides `toOldString` for old style.
-      assert(filter.asInstanceOf[SearchArgumentImpl].toOldString == stringExpr)
+      assert(filter.asInstanceOf[SearchArgumentImpl].toString == stringExpr)
     }
     checkFilterPredicate(df, predicate, checkLogicalOperator)
   }

@@ -89,7 +89,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
       (implicit df: DataFrame): Unit = {
     def checkLogicalOperator(filter: SearchArgument) = {
       // HIVE-24458 changes toString output and provides `toOldString` for old style.
-      assert(filter.asInstanceOf[SearchArgumentImpl].toOldString == stringExpr)
+      assert(filter.asInstanceOf[SearchArgumentImpl].toString == stringExpr)
     }
     checkFilterPredicate(df, predicate, checkLogicalOperator)
   }
@@ -546,7 +546,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
       OrcFilters.createFilter(schema, Array(
         LessThan("a", 10),
         StringContains("b", "prefix")
-      )).get.asInstanceOf[SearchArgumentImpl].toOldString
+      )).get.asInstanceOf[SearchArgumentImpl].toString
     }
 
     // The `LessThan` should be converted while the whole inner `And` shouldn't
@@ -557,7 +557,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
           GreaterThan("a", 1),
           StringContains("b", "prefix")
         ))
-      )).get.asInstanceOf[SearchArgumentImpl].toOldString
+      )).get.asInstanceOf[SearchArgumentImpl].toString
     }
 
     // Safely remove unsupported `StringContains` predicate and push down `LessThan`
@@ -567,7 +567,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
           LessThan("a", 10),
           StringContains("b", "prefix")
         )
-      )).get.asInstanceOf[SearchArgumentImpl].toOldString
+      )).get.asInstanceOf[SearchArgumentImpl].toString
     }
 
     // Safely remove unsupported `StringContains` predicate, push down `LessThan` and `GreaterThan`.
@@ -581,7 +581,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
           ),
           GreaterThan("a", 1)
         )
-      )).get.asInstanceOf[SearchArgumentImpl].toOldString
+      )).get.asInstanceOf[SearchArgumentImpl].toString
     }
   }
 
@@ -604,7 +604,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
             LessThan("a", 1)
           )
         )
-      )).get.asInstanceOf[SearchArgumentImpl].toOldString
+      )).get.asInstanceOf[SearchArgumentImpl].toString
     }
 
     assertResult("leaf-0 = (LESS_THAN_EQUALS a 10), leaf-1 = (LESS_THAN a 1)," +
@@ -620,7 +620,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
             LessThan("a", 1)
           )
         )
-      )).get.asInstanceOf[SearchArgumentImpl].toOldString
+      )).get.asInstanceOf[SearchArgumentImpl].toString
     }
 
     assert(OrcFilters.createFilter(schema, Array(
@@ -642,7 +642,7 @@ class OrcFilterSuite extends OrcTest with SharedSparkSession {
         LessThan(
           "a",
           new java.math.BigDecimal(3.14, MathContext.DECIMAL64).setScale(2)))
-      ).get.asInstanceOf[SearchArgumentImpl].toOldString
+      ).get.asInstanceOf[SearchArgumentImpl].toString
     }
   }
 
