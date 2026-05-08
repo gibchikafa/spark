@@ -2811,10 +2811,13 @@ class HiveDDLSuite
             checkAnswer(spark.table("t"), Row(1))
             val maybeFile = path.listFiles().find(_.getName.startsWith("part"))
 
-            Utils.tryWithResource(getReader(maybeFile.head.getCanonicalPath)) { reader =>
+            val reader = getReader(maybeFile.head.getCanonicalPath)
+            try {
               assert(reader.getCompressionKind.name === "ZLIB")
               assert(reader.getCompressionSize == 1001)
               assert(reader.getRowIndexStride == 2002)
+            } finally {
+              reader.close()
             }
           }
         }
