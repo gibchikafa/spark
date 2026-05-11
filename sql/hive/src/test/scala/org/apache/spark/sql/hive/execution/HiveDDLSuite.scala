@@ -2812,13 +2812,9 @@ class HiveDDLSuite
             val maybeFile = path.listFiles().find(_.getName.startsWith("part"))
 
             val reader = getReader(maybeFile.head.getCanonicalPath)
-            try {
-              assert(reader.getCompressionKind.name === "ZLIB")
-              assert(reader.getCompressionSize == 1001)
-              assert(reader.getRowIndexStride == 2002)
-            } finally {
-              reader.close()
-            }
+            assert(reader.getCompressionKind.name === "ZLIB")
+            assert(reader.getCompressionSize == 1001)
+            assert(reader.getRowIndexStride == 2002)
           }
         }
       }
