@@ -133,8 +133,8 @@
     <hive.group>io.hops.hive</hive.group>
     <hive.classifier>core</hive.classifier>
     <!-- Version used in Maven Hive dependency -->
-    <hive.version>3.0.0.14.3</hive.version>
-    <hive23.version>3.0.0.14.3</hive23.version>
+    <hive.version>3.0.0.14.4</hive.version>
+    <hive23.version>3.0.0.14.4</hive23.version>
     <!-- Version used for internal directory structure -->
     <hive.version.short>3.0</hive.version.short>
     <!-- note that this should be compatible with Kafka brokers version 0.10 and up -->
@@ -462,6 +462,21 @@
       <groupId>com.github.sbt</groupId>
       <artifactId>junit-interface</artifactId>
       <scope>test</scope>
+    </dependency>
+    <!-- Hadoop 3.4.x pulls in reload4j transitively which collides with
+         the log4j-1.2-api bridge and triggers a JVM VerifyError.
+         Mark provided so neither jar is bundled into Spark's assembly. -->
+    <dependency>
+      <groupId>ch.qos.reload4j</groupId>
+      <artifactId>reload4j</artifactId>
+      <version>1.2.22</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-reload4j</artifactId>
+      <version>1.7.36</version>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
   <dependencyManagement>
