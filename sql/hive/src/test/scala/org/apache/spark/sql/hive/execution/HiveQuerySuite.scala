@@ -1212,7 +1212,7 @@ class HiveQuerySuite extends HiveComparisonTest with SQLTestUtils with BeforeAnd
             .zip(parts)
             .map { case (k, v) =>
               if (v == "NULL") {
-                s"$k=${ConfVars.DEFAULTPARTITIONNAME.defaultStrVal}"
+                s"$k=${ConfVars.DEFAULT_PARTITION_NAME.defaultStrVal}"
               } else {
                 s"$k=$v"
               }

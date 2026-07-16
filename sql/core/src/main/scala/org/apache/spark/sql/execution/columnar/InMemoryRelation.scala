@@ -287,18 +287,27 @@ case class CachedRDDBuilder(
     }
   }
 
-  def isCachedColumnBuffersLoaded: Boolean = synchronized {
-    _cachedColumnBuffers != null && isCachedRDDLoaded
+  def isCachedColumnBuffersLoaded: Boolean = {
+    // This must stay a non-locking status test (as CacheManager.uncacheByCondition documents):
+    // cachedColumnBuffers holds this builder's monitor for the entire build of the cached plan,
+    // which can wait on a broadcast exchange, and the broadcast thread may re-enter here through
+    // CacheManager when unpersisting an unrelated Dataset (e.g. Hudi's column stats index does
+    // this during file pruning), deadlocking the query. SPARK-39104 made this method
+    // synchronized to avoid an NPE race with clearCache; capturing the volatile reference into
+    // a local suffices for that. While a build is in flight _cachedColumnBuffers is still null,
+    // so this reports "not loaded", which callers tolerate.
+    val rdd = _cachedColumnBuffers
+    rdd != null && isCachedRDDLoaded(rdd)
   }
 
-  private def isCachedRDDLoaded: Boolean = {
+  private def isCachedRDDLoaded(cachedRDD: RDD[CachedBatch]): Boolean = {
     _cachedColumnBuffersAreLoaded || {
       // We must make sure the statistics of `sizeInBytes` and `rowCount` are accurate if
       // `isCachedRDDLoaded` return true. Otherwise, AQE would do a wrong optimization,
       // e.g., convert a non-empty plan to empty local relation if `rowCount` is 0.
       // Because the statistics is based on accumulator, here we use an extra accumulator to
       // track if all partitions are materialized.
-      val rddLoaded = _cachedColumnBuffers.partitions.length == materializedPartitions.value
+      val rddLoaded = cachedRDD.partitions.length == materializedPartitions.value
       if (rddLoaded) {
         _cachedColumnBuffersAreLoaded = rddLoaded
       }

@@ -90,18 +90,20 @@ private[hive] object IsolatedClientLoader extends Logging {
   }
 
   def hiveVersion(version: String): HiveVersion = {
-    VersionUtils.majorMinorPatchVersion(version).flatMap {
-      case (2, 0, _) => Some(hive.v2_0)
-      case (2, 1, _) => Some(hive.v2_1)
-      case (2, 2, _) => Some(hive.v2_2)
-      case (2, 3, _) => Some(hive.v2_3)
-      case (3, 0, _) => Some(hive.v3_0)
-      case (3, 1, _) => Some(hive.v3_1)
-      case (4, 0, _) => Some(hive.v4_0)
-      case (4, 1, _) => Some(hive.v4_1)
-      case _ => None
-    }.getOrElse {
-      throw QueryExecutionErrors.unsupportedHiveMetastoreVersionError(
+    // Hops Hive versions like "3.0.0.14.5" have extra segments that VersionUtils cannot parse.
+    // Extract only major.minor for matching.
+    val parts = version.split("\\.")
+    val majorMinor = if (parts.length >= 2) s"${parts(0)}.${parts(1)}" else parts(0)
+    majorMinor match {
+      case "2.0" => hive.v2_0
+      case "2.1" => hive.v2_1
+      case "2.2" => hive.v2_2
+      case "2.3" => hive.v2_3
+      case "3.0" => hive.v3_0
+      case "3.1" => hive.v3_1
+      case "4.0" => hive.v4_0
+      case "4.1" => hive.v4_1
+      case _ => throw QueryExecutionErrors.unsupportedHiveMetastoreVersionError(
         version, HiveUtils.HIVE_METASTORE_VERSION.key)
     }
   }

@@ -23,7 +23,7 @@ import java.time.Duration
 import scala.jdk.CollectionConverters._
 
 import org.apache.hadoop.{io => hadoopIo}
-import org.apache.hadoop.hive.common.`type`.{HiveChar, HiveDecimal, HiveIntervalDayTime, HiveIntervalYearMonth, HiveVarchar}
+import org.apache.hadoop.hive.common.`type`.{Date, HiveChar, HiveDecimal, HiveIntervalDayTime, HiveIntervalYearMonth, HiveVarchar, Timestamp}
 import org.apache.hadoop.hive.serde2.{io => hiveIo}
 import org.apache.hadoop.hive.serde2.objectinspector.{StructField => HiveStructField, _}
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
@@ -35,7 +35,6 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util._
 import org.apache.spark.sql.errors.DataTypeErrors.toSQLType
-import org.apache.spark.sql.execution.datasources.DaysWritable
 import org.apache.spark.sql.types
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
@@ -191,8 +190,8 @@ private[hive] trait HiveInspectors {
     case c: Class[_] if c == classOf[hiveIo.HiveDecimalWritable] => DecimalType.SYSTEM_DEFAULT
     case c: Class[_] if c == classOf[hiveIo.ByteWritable] => ByteType
     case c: Class[_] if c == classOf[hiveIo.ShortWritable] => ShortType
-    case c: Class[_] if c == classOf[hiveIo.DateWritable] => DateType
-    case c: Class[_] if c == classOf[hiveIo.TimestampWritable] => TimestampType
+    case c: Class[_] if c == classOf[hiveIo.DateWritableV2] => DateType
+    case c: Class[_] if c == classOf[hiveIo.TimestampWritableV2] => TimestampType
     case c: Class[_] if c == classOf[hadoopIo.Text] => StringType
     case c: Class[_] if c == classOf[hadoopIo.IntWritable] => IntegerType
     case c: Class[_] if c == classOf[hadoopIo.LongWritable] => LongType
@@ -327,11 +326,11 @@ private[hive] trait HiveInspectors {
         withNullSafe(o =>
           HiveDecimal.create(o.asInstanceOf[Decimal].toJavaBigDecimal))
       case _: JavaDateObjectInspector =>
-        withNullSafe(o =>
-            DateTimeUtils.toJavaDate(o.asInstanceOf[Int]))
+        // Hive 4 java object inspectors expect org.apache.hadoop.hive.common.type.Date /
+        // Timestamp, not java.sql.Date / java.sql.Timestamp as in Hive 2.3.
+        withNullSafe(o => Date.ofEpochDay(o.asInstanceOf[Int]))
       case _: JavaTimestampObjectInspector =>
-        withNullSafe(o =>
-            DateTimeUtils.toJavaTimestamp(o.asInstanceOf[Long]))
+        withNullSafe(o => microsToHiveTimestamp(o.asInstanceOf[Long]))
       case _: HiveDecimalObjectInspector if x.preferWritable() =>
         withNullSafe(o => getDecimalWritable(o.asInstanceOf[Decimal]))
       case _: HiveDecimalObjectInspector =>
@@ -344,11 +343,11 @@ private[hive] trait HiveInspectors {
       case _: DateObjectInspector if x.preferWritable() =>
         withNullSafe(o => getDateWritable(o))
       case _: DateObjectInspector =>
-        withNullSafe(o => DateTimeUtils.toJavaDate(o.asInstanceOf[Int]))
+        withNullSafe(o => Date.ofEpochDay(o.asInstanceOf[Int]))
       case _: TimestampObjectInspector if x.preferWritable() =>
         withNullSafe(o => getTimestampWritable(o))
       case _: TimestampObjectInspector =>
-        withNullSafe(o => DateTimeUtils.toJavaTimestamp(o.asInstanceOf[Long]))
+        withNullSafe(o => microsToHiveTimestamp(o.asInstanceOf[Long]))
       case _: HiveIntervalDayTimeObjectInspector  if x.preferWritable() =>
         withNullSafe(o => getHiveIntervalDayTimeWritable(o))
       case _: HiveIntervalDayTimeObjectInspector =>
@@ -480,7 +479,7 @@ private[hive] trait HiveInspectors {
         _ => constant
       case poi: WritableConstantTimestampObjectInspector =>
         val t = poi.getWritableConstantValue
-        val constant = DateTimeUtils.fromJavaTimestamp(t.getTimestamp)
+        val constant = hiveTimestampToMicros(t.getTimestamp)
         _ => constant
       case poi: WritableConstantIntObjectInspector =>
         val constant = poi.getWritableConstantValue.get()
@@ -509,7 +508,7 @@ private[hive] trait HiveInspectors {
         System.arraycopy(writable.getBytes, 0, constant, 0, constant.length)
         _ => constant
       case poi: WritableConstantDateObjectInspector =>
-        val constant = DateTimeUtils.fromJavaDate(poi.getWritableConstantValue.get())
+        val constant = poi.getWritableConstantValue.get().toEpochDay
         _ => constant
       case mi: StandardConstantMapObjectInspector =>
         val keyUnwrapper = unwrapperFor(mi.getMapKeyObjectInspector)
@@ -633,7 +632,9 @@ private[hive] trait HiveInspectors {
         case x: DateObjectInspector if x.preferWritable() =>
           data: Any => {
             if (data != null) {
-              new DaysWritable(x.getPrimitiveWritableObject(data)).gregorianDays
+              // Hive 4's DateWritableV2 days are already proleptic Gregorian, matching
+              // Spark's DateType days: no rebase needed.
+              x.getPrimitiveWritableObject(data).getDays
             } else {
               null
             }
@@ -641,7 +642,7 @@ private[hive] trait HiveInspectors {
         case x: DateObjectInspector =>
           data: Any => {
             if (data != null) {
-              DateTimeUtils.fromJavaDate(x.getPrimitiveJavaObject(data))
+              x.getPrimitiveJavaObject(data).toEpochDay
             } else {
               null
             }
@@ -649,7 +650,7 @@ private[hive] trait HiveInspectors {
         case x: TimestampObjectInspector if x.preferWritable() =>
           data: Any => {
             if (data != null) {
-              DateTimeUtils.fromJavaTimestamp(x.getPrimitiveWritableObject(data).getTimestamp)
+              hiveTimestampToMicros(x.getPrimitiveWritableObject(data).getTimestamp)
             } else {
               null
             }
@@ -657,7 +658,7 @@ private[hive] trait HiveInspectors {
         case ti: TimestampObjectInspector =>
           data: Any => {
             if (data != null) {
-              DateTimeUtils.fromJavaTimestamp(ti.getPrimitiveJavaObject(data))
+              hiveTimestampToMicros(ti.getPrimitiveJavaObject(data))
             } else {
               null
             }
@@ -1094,18 +1095,40 @@ private[hive] trait HiveInspectors {
       new hadoopIo.BytesWritable(value.asInstanceOf[Array[Byte]])
     }
 
-  private def getDateWritable(value: Any): DaysWritable =
+  /**
+   * Conversions between Hive 4's timezone-agnostic Timestamp/Date (proleptic Gregorian
+   * wall-clock values) and Spark's TimestampType micros / DateType days. The wall clock
+   * is interpreted as UTC on both read and write (mirroring Hive's own
+   * Timestamp.toEpochSecond/ofEpochSecond), so round trips are lossless down to
+   * microseconds and no Julian/Gregorian rebase is applied, as both representations
+   * already use the proleptic Gregorian calendar. Note this matches Hive/Spark behavior
+   * on UTC JVMs; Hive 2.3's writables interpreted the wall clock in the JVM zone.
+   */
+  private[hive] def hiveTimestampToMicros(t: Timestamp): Long =
+    Math.addExact(
+      Math.multiplyExact(t.toEpochSecond, DateTimeConstants.MICROS_PER_SECOND),
+      t.getNanos / DateTimeConstants.NANOS_PER_MICROS)
+
+  private[hive] def microsToHiveTimestamp(micros: Long): Timestamp =
+    Timestamp.ofEpochSecond(
+      Math.floorDiv(micros, DateTimeConstants.MICROS_PER_SECOND),
+      (Math.floorMod(micros, DateTimeConstants.MICROS_PER_SECOND) *
+        DateTimeConstants.NANOS_PER_MICROS).toInt)
+
+  private def getDateWritable(value: Any): hiveIo.DateWritableV2 =
     if (value == null) {
       null
     } else {
-      new DaysWritable(value.asInstanceOf[Int])
+      // Spark's DateType days and Hive 4's Date days are both proleptic Gregorian
+      // epoch days: pass through without rebasing.
+      new hiveIo.DateWritableV2(value.asInstanceOf[Int])
     }
 
-  private def getTimestampWritable(value: Any): hiveIo.TimestampWritable =
+  private def getTimestampWritable(value: Any): hiveIo.TimestampWritableV2 =
     if (value == null) {
       null
     } else {
-      new hiveIo.TimestampWritable(DateTimeUtils.toJavaTimestamp(value.asInstanceOf[Long]))
+      new hiveIo.TimestampWritableV2(microsToHiveTimestamp(value.asInstanceOf[Long]))
     }
 
   private def getHiveIntervalDayTimeWritable(value: Any): hiveIo.HiveIntervalDayTimeWritable =

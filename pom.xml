@@ -26,7 +26,7 @@
   </parent>
   <groupId>org.apache.spark</groupId>
   <artifactId>spark-parent_2.13</artifactId>
-  <version>4.1.3</version>
+  <version>4.1.3.0</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
   <url>https://spark.apache.org/</url>
@@ -127,16 +127,17 @@
     <slf4j.version>2.0.17</slf4j.version>
     <log4j.version>2.24.3</log4j.version>
     <!-- make sure to update IsolatedClientLoader whenever this version is changed -->
-    <hadoop.version>3.4.2</hadoop.version>
+    <hadoop.version>3.4.3.2-EE-RC0</hadoop.version>
+    <hadoop.group>io.hops</hadoop.group>
     <!-- SPARK-41247: When updating `protobuf.version`, also need to update `protoVersion` in `SparkBuild.scala` -->
     <protobuf.version>4.33.0</protobuf.version>
     <protoc-jar-maven-plugin.version>3.11.4</protoc-jar-maven-plugin.version>
     <zookeeper.version>3.9.4</zookeeper.version>
     <curator.version>5.9.0</curator.version>
-    <hive.group>org.apache.hive</hive.group>
+    <hive.group>io.hops.hive</hive.group>
     <hive.classifier>core</hive.classifier>
     <!-- Version used in Maven Hive dependency -->
-    <hive.version>2.3.10</hive.version>
+    <hive.version>4.1.0</hive.version>
     <!-- note that this should be compatible with Kafka brokers version 0.10 and up -->
     <kafka.version>3.9.1</kafka.version>
     <!-- After 10.17.1.0, the minimum required version is JDK19 -->
@@ -197,7 +198,10 @@
     <commons-lang3.version>3.19.0</commons-lang3.version>
     <!-- org.apache.commons/commons-pool2/-->
     <commons-pool2.version>2.12.1</commons-pool2.version>
-    <datanucleus-core.version>4.1.17</datanucleus-core.version>
+    <!-- Hive 4.1's metastore requires DataNucleus 6.x; must not mix with the 4.1.17
+         core that upstream Spark pinned for Hive 2.3 (api-jdo/rdbms 6.0.x come in
+         transitively from hive-standalone-metastore-server and need a matching core). -->
+    <datanucleus-core.version>6.0.10</datanucleus-core.version>
     <guava.version>33.4.8-jre</guava.version>
     <guava.failureaccess.version>1.0.3</guava.failureaccess.version>
     <gson.version>2.11.0</gson.version>
@@ -281,12 +285,17 @@
     <hadoop.deps.scope>compile</hadoop.deps.scope>
     <huaweicloud.deps.scope>compile</huaweicloud.deps.scope>
     <hive.deps.scope>compile</hive.deps.scope>
-    <hive.storage.version>2.8.1</hive.storage.version>
+    <!-- Must match ${hive.version}: hive-exec/hive-serde 4.1.0 are compiled against
+         storage-api 4.1.0, and ORC 2.x needs DateColumnVector which older storage-api
+         versions (e.g. the Hops Hive 3.0-era 2.6.1.x) do not have. -->
+    <hive.storage.version>4.1.0</hive.storage.version>
     <hive.storage.scope>compile</hive.storage.scope>
     <hive.common.scope>compile</hive.common.scope>
     <hive.llap.scope>test</hive.llap.scope>
     <hive.serde.scope>compile</hive.serde.scope>
     <hive.shims.scope>compile</hive.shims.scope>
+    <hive.service.scope>compile</hive.service.scope>
+    <hive.jdbc.scope>compile</hive.jdbc.scope>
     <orc.deps.scope>compile</orc.deps.scope>
     <parquet.deps.scope>compile</parquet.deps.scope>
     <parquet.test.deps.scope>test</parquet.test.deps.scope>
@@ -381,6 +390,28 @@
         <enabled>false</enabled>
       </snapshots>
     </repository>
+    <repository>
+      <id>HopsEE</id>
+      <name>Hops Release Repository</name>
+      <url>https://nexus.hops.works/repository/hops-artifacts</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>Hops</id>
+      <name>Hops Repo</name>
+      <url>https://archiva.hops.works/repository/Hops/</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
   </repositories>
   <pluginRepositories>
     <pluginRepository>
@@ -459,6 +490,21 @@
       <groupId>com.github.sbt.junit</groupId>
       <artifactId>jupiter-interface</artifactId>
       <scope>test</scope>
+    </dependency>
+    <!-- Hadoop 3.4.x pulls in reload4j transitively which collides with
+         the log4j-1.2-api bridge and triggers a JVM VerifyError.
+         Mark provided so neither jar is bundled into Spark's assembly. -->
+    <dependency>
+      <groupId>ch.qos.reload4j</groupId>
+      <artifactId>reload4j</artifactId>
+      <version>1.2.22</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-reload4j</artifactId>
+      <version>1.7.36</version>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
   <dependencyManagement>
@@ -1074,6 +1120,11 @@
         <version>${ws.xmlschema.version}</version>
       </dependency>
       <dependency>
+        <groupId>com.fasterxml.woodstox</groupId>
+        <artifactId>woodstox-core</artifactId>
+        <version>5.4.0</version>
+      </dependency>
+      <dependency>
         <groupId>org.glassfish.jersey.core</groupId>
         <artifactId>jersey-server</artifactId>
         <version>${jersey.version}</version>
@@ -1422,13 +1473,13 @@
       </dependency>
       <!-- Hadoop 3.x dependencies -->
       <dependency>
-        <groupId>org.apache.hadoop</groupId>
+        <groupId>${hadoop.group}</groupId>
         <artifactId>hadoop-client-api</artifactId>
         <version>${hadoop.version}</version>
         <scope>${hadoop.deps.scope}</scope>
       </dependency>
       <dependency>
-        <groupId>org.apache.hadoop</groupId>
+        <groupId>${hadoop.group}</groupId>
         <artifactId>hadoop-client-runtime</artifactId>
         <version>${hadoop.version}</version>
         <scope>${hadoop.deps.scope}</scope>
@@ -1437,17 +1488,27 @@
             <groupId>commons-logging</groupId>
             <artifactId>commons-logging</artifactId>
           </exclusion>
+          <!-- reload4j collides with the log4j-1.2-api bridge and triggers
+               a JVM VerifyError; keep it out of Spark's assembly. -->
+          <exclusion>
+            <groupId>ch.qos.reload4j</groupId>
+            <artifactId>reload4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-reload4j</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>org.apache.hadoop</groupId>
+        <groupId>${hadoop.group}</groupId>
         <artifactId>hadoop-client-minicluster</artifactId>
         <version>${hadoop.version}</version>
         <scope>test</scope>
       </dependency>
       <!-- End of Hadoop 3.x dependencies -->
       <dependency>
-        <groupId>org.apache.hadoop</groupId>
+        <groupId>${hadoop.group}</groupId>
         <artifactId>hadoop-minikdc</artifactId>
         <version>${hadoop.version}</version>
         <scope>test</scope>
@@ -1724,6 +1785,12 @@
       </dependency>
       <dependency>
         <groupId>${hive.group}</groupId>
+        <artifactId>hive-udf</artifactId>
+        <version>${hive.version}</version>
+        <scope>${hive.deps.scope}</scope>
+      </dependency>
+      <dependency>
+        <groupId>${hive.group}</groupId>
         <artifactId>hive-common</artifactId>
         <version>${hive.version}</version>
         <scope>${hive.deps.scope}</scope>
@@ -1737,11 +1804,11 @@
             <artifactId>ant</artifactId>
           </exclusion>
           <exclusion>
-            <groupId>org.apache.hadoop</groupId>
+            <groupId>${hadoop.group}</groupId>
             <artifactId>hadoop-common</artifactId>
           </exclusion>
           <exclusion>
-            <groupId>org.apache.hadoop</groupId>
+            <groupId>${hadoop.group}</groupId>
             <artifactId>hadoop-auth</artifactId>
           </exclusion>
           <exclusion>
@@ -1944,6 +2011,16 @@
             <groupId>net.hydromatic</groupId>
             <artifactId>aggdesigner-algorithm</artifactId>
           </exclusion>
+          <!-- com.vlkan:flatbuffers is not in Maven Central; use hive-storage-api instead -->
+          <exclusion>
+            <groupId>com.vlkan</groupId>
+            <artifactId>flatbuffers</artifactId>
+          </exclusion>
+          <!-- atlas-intg (pulled in by Hopsworks hive-exec) transitively brings hadoop-common which is banned -->
+          <exclusion>
+            <groupId>org.apache.atlas</groupId>
+            <artifactId>atlas-intg</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>
@@ -2072,6 +2149,102 @@
         </exclusions>
       </dependency>
 
+      <!--
+        Hive 4.x split RetryUtilities and other metastore server-side classes out of
+        hive-standalone-metastore-common into a new hive-standalone-metastore-server
+        module (didn't exist as a separate artifact in Hive 3.x). Hudi's HiveSyncTool
+        reflects over IMetaStoreClient and eagerly resolves these classes, so this is
+        needed even though Spark only acts as a metastore client.
+      -->
+      <dependency>
+        <groupId>${hive.group}</groupId>
+        <artifactId>hive-standalone-metastore-server</artifactId>
+        <version>${hive.version}</version>
+        <scope>${hive.deps.scope}</scope>
+        <exclusions>
+          <exclusion>
+            <groupId>${hive.group}</groupId>
+            <artifactId>hive-standalone-metastore-common</artifactId>
+          </exclusion>
+          <!-- Already provided (with hadoop-client exclusions) via sql/core's own orc-core dependency -->
+          <exclusion>
+            <groupId>org.apache.orc</groupId>
+            <artifactId>orc-core</artifactId>
+          </exclusion>
+          <!-- Pinned to Hive's old javax.servlet-based Jetty 9; conflicts with Spark's jakarta.servlet-based Jetty 11 -->
+          <exclusion>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-server</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-servlet</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-util</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+
+      <!--
+        Hops Hive JDBC driver (io.hops.hive.jdbc.HiveDriver) plus its hive-service /
+        hive-service-rpc dependencies. Needed at runtime by Hudi's JDBCExecutor (hive
+        sync mode "jdbc" and the thrift-incompatibility JDBC fallback). The Hops Spark
+        3.5 distribution shipped these jars; keep parity here.
+      -->
+      <dependency>
+        <groupId>${hive.group}</groupId>
+        <artifactId>hops-jdbc</artifactId>
+        <version>${hive.version}</version>
+        <scope>${hive.jdbc.scope}</scope>
+        <exclusions>
+          <!-- Only the JDBC client classes are needed; keep the HS2 server stack out -->
+          <exclusion>
+            <groupId>${hive.group}</groupId>
+            <artifactId>hive-exec</artifactId>
+          </exclusion>
+          <!-- Hive's javax.servlet-based Jetty 9 conflicts with Spark's jakarta.servlet-based Jetty 11 -->
+          <exclusion>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <!-- Spark manages its own ZooKeeper/Curator versions -->
+          <exclusion>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.reload4j</groupId>
+            <artifactId>reload4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-reload4j</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+
       <dependency>
         <groupId>${hive.group}</groupId>
         <artifactId>hive-serde</artifactId>
@@ -2188,7 +2361,7 @@
             <artifactId>guava</artifactId>
           </exclusion>
           <exclusion>
-            <groupId>org.apache.hadoop</groupId>
+            <groupId>${hadoop.group}</groupId>
             <artifactId>hadoop-yarn-server-resourcemanager</artifactId>
           </exclusion>
           <exclusion>
@@ -2787,8 +2960,8 @@
             <jvmArgs>
               <jvmArg>-Xss128m</jvmArg>
               <jvmArg>-Xms4g</jvmArg>
-              <jvmArg>-Xmx4g</jvmArg>
-              <jvmArg>-XX:MaxMetaspaceSize=2g</jvmArg>
+              <jvmArg>-Xmx8g</jvmArg>
+              <jvmArg>-XX:MaxMetaspaceSize=4g</jvmArg>
               <jvmArg>-XX:ReservedCodeCacheSize=${CodeCacheSize}</jvmArg>
               <jvmArg>--enable-native-access=ALL-UNNAMED</jvmArg>
             </jvmArgs>
@@ -3666,4 +3839,10 @@
       </build>
     </profile>
   </profiles>
+  <distributionManagement>
+    <repository>
+      <id>Spark</id>
+      <url>https://nexus.hops.works/repository/hops-artifacts</url>
+    </repository>
+  </distributionManagement>
 </project>

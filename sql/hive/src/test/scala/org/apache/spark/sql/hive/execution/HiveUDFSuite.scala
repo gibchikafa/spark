@@ -856,7 +856,7 @@ class TestPair(x: Int, y: Int) extends Writable with Serializable {
 }
 
 class PairSerDe extends AbstractSerDe {
-  override def initialize(p1: Configuration, p2: Properties): Unit = {}
+  override def initialize(p1: Configuration, p2: Properties, p3: Properties): Unit = {}
 
   override def getObjectInspector: ObjectInspector = {
     ObjectInspectorFactory

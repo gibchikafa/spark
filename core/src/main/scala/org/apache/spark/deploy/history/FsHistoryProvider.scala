@@ -31,8 +31,9 @@ import scala.xml.Node
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import org.apache.hadoop.fs.{FileStatus, FileSystem, Path, SafeModeAction}
+import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.hadoop.hdfs.DistributedFileSystem
+import org.apache.hadoop.hdfs.protocol.HdfsConstants
 import org.apache.hadoop.security.AccessControlException
 
 import org.apache.spark.{SecurityManager, SparkConf, SparkException}
@@ -1237,7 +1238,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
 
   private[history] def isFsInSafeMode(dfs: DistributedFileSystem): Boolean = {
     /* true to check only for Active NNs status */
-    dfs.setSafeMode(SafeModeAction.GET, true)
+    dfs.setSafeMode(HdfsConstants.SafeModeAction.SAFEMODE_GET, true)
   }
 
   /**

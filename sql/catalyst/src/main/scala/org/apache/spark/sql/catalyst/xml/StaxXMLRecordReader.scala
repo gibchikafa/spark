@@ -23,7 +23,7 @@ import javax.xml.transform.stax.StAXSource
 
 import scala.util.control.NonFatal
 
-import org.apache.hadoop.shaded.com.ctc.wstx.exc.WstxEOFException
+import com.ctc.wstx.exc.WstxEOFException
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.util.SparkErrorUtils

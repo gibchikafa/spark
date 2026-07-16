@@ -16,12 +16,11 @@
  */
 package org.apache.spark.sql.execution.datasources.xml
 
-import java.io.StringReader
+import java.io.{InputStreamReader, StringReader}
 
 import scala.jdk.CollectionConverters._
 
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.shaded.org.jline.utils.InputStreamReader
 import org.apache.ws.commons.schema._
 import org.apache.ws.commons.schema.constants.Constants
 
