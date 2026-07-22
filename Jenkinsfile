@@ -32,7 +32,9 @@ pipeline {
 
   environment {
     BUILD_PROFILES = 'kubernetes,hadoop-provided,parquet-provided,hive,hadoop-cloud'
-    DISTRIBUTION_PROFILES = 'kubernetes,hadoop-provided,parquet-provided,hive,hadoop-cloud,bigtop-dist'
+    // TODO(robzor92 PR#57 review): since the io.hops assembly excludes went away with assembly.xml,
+    // verify one built tarball's jars/ contains io.hops.hive but no io.hops hadoop jars before shipping.
+    DISTRIBUTION_PROFILES = 'kubernetes,hadoop-provided,parquet-provided,hive,hadoop-cloud'
     DOCKER_IMAGE = 'maven:3.9.9-eclipse-temurin-17'
     HOST_MAVEN_REPO = '/home/jenkinsmaster/.m2'
     DISTRIBUTION_REPOSITORY = '/opt/repository/master'
@@ -46,12 +48,11 @@ pipeline {
     stage('Checkout') {
       steps {
         deleteDir()
+        // Repo URL and credentials come from the job's SCM configuration; only the
+        // branch is overridden by the BRANCH_TO_BUILD parameter.
         checkout([$class: 'GitSCM',
           branches: [[name: "${params.BRANCH_TO_BUILD}"]],
-          userRemoteConfigs: [[
-            url: 'git@github.com:gibchikafa/spark.git',
-            credentialsId: 'id_rsa'
-          ]]
+          userRemoteConfigs: scm.userRemoteConfigs
         ])
       }
     }
