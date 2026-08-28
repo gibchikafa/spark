@@ -23,7 +23,7 @@ import javax.xml.stream.XMLOutputFactory
 
 import scala.collection.Map
 
-import org.apache.hadoop.shaded.com.ctc.wstx.api.WstxOutputProperties
+import com.ctc.wstx.api.WstxOutputProperties
 
 import org.apache.spark.SparkIllegalArgumentException
 import org.apache.spark.sql.catalyst.InternalRow

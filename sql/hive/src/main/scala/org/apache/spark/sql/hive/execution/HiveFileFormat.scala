@@ -93,7 +93,21 @@ case class HiveFileFormat(fileSinkConf: FileSinkDesc)
     // Add table properties from storage handler to hadoopConf, so any custom storage
     // handler settings can be set to hadoopConf
     HiveTableUtil.configureJobPropertiesForStorageHandler(tableDesc, conf, false)
-    Utilities.copyTableJobPropertiesToConf(tableDesc, conf)
+    // Hive 4 narrowed copyTableJobPropertiesToConf from (TableDesc, Configuration) to
+    // (TableDesc, JobConf), so it can no longer be handed the Job's own configuration the
+    // way upstream Spark does. `new JobConf(conf)` is Hadoop's copy constructor, so the
+    // properties land in a copy; fold them back onto `conf`, which is what the rest of the
+    // write path reads and what upstream mutated directly. Only keys the table descriptor
+    // actually carries are copied, and only when unset - matching what Hive's own method
+    // does - so the mapred defaults a JobConf pulls in are not leaked into the job conf.
+    val tableJobConf = new JobConf(conf)
+    Utilities.copyTableJobPropertiesToConf(tableDesc, tableJobConf)
+    tableDesc.getProperties.stringPropertyNames.asScala.foreach { name =>
+      val value = tableJobConf.get(name)
+      if (value != null && conf.get(name) == null) {
+        conf.set(name, value)
+      }
+    }
 
     // Avoid referencing the outer object.
     val fileSinkConfSer = fileSinkConf
@@ -140,9 +154,7 @@ class HiveOutputWriter(
   private def tableDesc = fileSinkConf.getTableInfo
 
   private val serializer = {
-    val serializer = tableDesc.getDeserializerClass.getConstructor().
-      newInstance().asInstanceOf[Serializer]
-    serializer.initialize(jobConf, tableDesc.getProperties)
+    val serializer = tableDesc.getDeserializer(jobConf).asInstanceOf[Serializer]
     serializer
   }
 

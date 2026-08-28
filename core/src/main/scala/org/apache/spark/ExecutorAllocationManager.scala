@@ -210,7 +210,9 @@ private[spark] class ExecutorAllocationManager(
     val shuffleDecommissionEnabled = decommissionEnabled &&
       conf.get(config.STORAGE_DECOMMISSION_SHUFFLE_BLOCKS_ENABLED)
     if (!conf.get(config.SHUFFLE_SERVICE_ENABLED) && !reliableShuffleStorage) {
-      if (shuffleTrackingEnabled) {
+      if (conf.isRssEnable()) {
+        logInfo("Dynamic allocation will use remote shuffle service")
+      } else if (shuffleTrackingEnabled) {
         logInfo("Dynamic allocation is enabled without a shuffle service.")
       } else if (shuffleDecommissionEnabled) {
         logInfo("Shuffle data decommission is enabled without a shuffle service.")

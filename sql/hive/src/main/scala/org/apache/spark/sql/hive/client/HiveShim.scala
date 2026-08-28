@@ -29,11 +29,11 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.{IMetaStoreClient, PartitionDropOptions, TableType}
-import org.apache.hadoop.hive.metastore.api.{Database, EnvironmentContext, Function => HiveFunction, FunctionType, Index, MetaException, PrincipalType, ResourceType, ResourceUri}
+import org.apache.hadoop.hive.metastore.api.{Database, EnvironmentContext, Function => HiveFunction, FunctionType, MetaException, PrincipalType, ResourceType, ResourceUri}
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.io.AcidUtils
 import org.apache.hadoop.hive.ql.metadata.{Hive, HiveException, Partition, Table}
-import org.apache.hadoop.hive.ql.plan.{AddPartitionDesc, DynamicPartitionCtx}
+import org.apache.hadoop.hive.ql.plan.DynamicPartitionCtx
 import org.apache.hadoop.hive.ql.processors.{CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.serde.serdeConstants
@@ -211,7 +211,8 @@ private[client] sealed abstract class Shim {
 
   def listFunctions(hive: Hive, db: String, pattern: String): Seq[String]
 
-  def dropIndex(hive: Hive, dbName: String, tableName: String, indexName: String): Unit
+  // def dropIndex(hive: Hive, dbName: String, tableName: String, indexName: String): Unit
+  // Hops Hive 3.0 removed Index APIs; dropIndex is no longer available.
 
   def dropTable(
       hive: Hive,
@@ -235,7 +236,8 @@ private[client] sealed abstract class Shim {
 
   def getMSC(hive: Hive): IMetaStoreClient
 
-  def getIndexes(hive: Hive, dbName: String, tableName: String, max: Short): Seq[Index]
+  // def getIndexes(hive: Hive, dbName: String, tableName: String, max: Short): Seq[Index]
+  // Hops Hive 3.0 removed Index APIs; getIndexes is no longer available.
 
   protected def findMethod(klass: Class[_], name: String, args: Class[_]*): Method = {
     klass.getMethod(name, args: _*)
@@ -324,16 +326,13 @@ private[client] class Shim_v2_0 extends Shim with Logging {
       table: Table,
       parts: Seq[CatalogTablePartition],
       ignoreIfExists: Boolean): Unit = {
-    val addPartitionDesc = new AddPartitionDesc(table.getDbName, table.getTableName, ignoreIfExists)
-    parts.zipWithIndex.foreach { case (s, i) =>
-      addPartitionDesc.addPartition(
-        s.spec.asJava, s.storage.locationUri.map(CatalogUtils.URIToString).orNull)
-      if (s.parameters.nonEmpty) {
-        addPartitionDesc.getPartition(i).setPartParams(s.parameters.asJava)
-      }
-    }
+    // Hive 4 removed Hive.createPartitions(AddPartitionDesc); use addPartitions, which
+    // preserves each partition's location/parameters and honors ignoreIfExists
+    // (Hive.createPartition would drop both and throw on existing partitions).
+    val partitions = parts.map(HiveClientImpl.toHivePartition(_, table).getTPartition).asJava
     recordHiveCall()
-    hive.createPartitions(addPartitionDesc)
+    val needResults = false
+    hive.addPartitions(partitions, ignoreIfExists, needResults)
   }
 
   override def getAllPartitions(hive: Hive, table: Table): Seq[Partition] = {
@@ -516,10 +515,12 @@ private[client] class Shim_v2_0 extends Shim with Logging {
       numDP: JInteger, listBucketingEnabled: JBoolean, isAcid, txnIdInLoadDynamicPartitions)
   }
 
+  /* Hops Hive 3.0 removed Index APIs
   override def dropIndex(hive: Hive, dbName: String, tableName: String, indexName: String): Unit = {
     recordHiveCall()
     hive.dropIndex(dbName, tableName, indexName, throwExceptionInDropIndex, deleteDataInDropIndex)
   }
+  */
 
   override def dropTable(
       hive: Hive,
@@ -995,9 +996,10 @@ private[client] class Shim_v2_0 extends Shim with Logging {
       oldPartSpec: JMap[String, String],
       newPart: Partition): Unit = {
     recordHiveCall()
-    hive.renamePartition(table, oldPartSpec, newPart)
+    hive.renamePartition(table, oldPartSpec, newPart, 0L)
   }
 
+  /* Hops Hive 3.0 removed Index APIs
   override def getIndexes(
       hive: Hive,
       dbName: String,
@@ -1006,6 +1008,7 @@ private[client] class Shim_v2_0 extends Shim with Logging {
     recordHiveCall()
     hive.getIndexes(dbName, tableName, max).asScala.toSeq
   }
+  */
 }
 
 private[client] class Shim_v2_1 extends Shim_v2_0 {

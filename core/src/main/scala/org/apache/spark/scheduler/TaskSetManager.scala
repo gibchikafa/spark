@@ -1146,7 +1146,7 @@ private[spark] class TaskSetManager(
     // could serve the shuffle outputs or the executor lost is caused by decommission (which
     // can destroy the whole host). The reason is the next stage wouldn't be able to fetch the
     // data from this dead executor so we would need to rerun these tasks on other executors.
-    val maybeShuffleMapOutputLoss = isShuffleMapTasks &&
+    val maybeShuffleMapOutputLoss = isShuffleMapTasks && !sched.sc.conf.isRssEnable() &&
       !sched.sc.shuffleDriverComponents.supportsReliableStorage() &&
       (reason.isInstanceOf[ExecutorDecommission] || !env.blockManager.externalShuffleServiceEnabled)
     if (maybeShuffleMapOutputLoss && !isZombie) {

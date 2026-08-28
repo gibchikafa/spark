@@ -37,7 +37,6 @@ import org.apache.hadoop.hive.metastore.{HiveMetaStoreClient, IMetaStoreClient, 
 import org.apache.hadoop.hive.metastore.api.{Database => HiveDatabase, Table => MetaStoreApiTable, _}
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.metadata.{Hive, HiveException, Partition => HivePartition, Table => HiveTable}
-import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.HIVE_COLUMN_ORDER_ASC
 import org.apache.hadoop.hive.ql.processors._
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.serde.serdeConstants
@@ -473,7 +472,7 @@ private[hive] class HiveClientImpl(
       // are sorted in ascending order, only then propagate the sortedness information
       // to downstream processing / optimizations in Spark
       // TODO: In future we can have Spark support columns sorted in descending order
-      val allAscendingSorted = sortColumnOrders.forall(_.getOrder == HIVE_COLUMN_ORDER_ASC)
+      val allAscendingSorted = sortColumnOrders.forall(_.getOrder == 1)
 
       val sortColumnNames = if (allAscendingSorted) {
         sortColumnOrders.map(_.getCol)
@@ -875,20 +874,11 @@ private[hive] class HiveClientImpl(
       // Since HIVE-18238(Hive 3.0.0), the Driver.close function's return type changed
       // and the CommandProcessorFactory.clean function removed.
       driver.getClass.getMethod("close").invoke(driver)
-      if (version < hive.v3_0) {
-        CommandProcessorFactory.clean(conf)
-      }
     }
 
     def getResponseCode(response: CommandProcessorResponse): Int = {
-      if (version < hive.v4_0) {
-        response.getResponseCode
-      } else {
-        // Since Hive 4.0, response code is removed from CommandProcessorResponse.
-        // Here we simply return 0 for the positive cases as for error cases it will
-        // throw exceptions early.
-        0
-      }
+      // Since Hive 4.0, response code is removed from CommandProcessorResponse.
+      0
     }
 
     // Hive query needs to start SessionState.
@@ -908,7 +898,7 @@ private[hive] class HiveClientImpl(
             if (getResponseCode(response) != 0) {
               // Throw an exception if there is an error in query processing.
               // This works for hive 3.x and earlier versions.
-              throw new QueryExecutionException(response.getErrorMessage)
+              throw new QueryExecutionException(response.getMessage)
             }
             driver.setMaxRows(maxRows)
             val results = shim.getDriverResults(driver)
@@ -938,7 +928,7 @@ private[hive] class HiveClientImpl(
             // Throw an exception if there is an error in query processing.
             // This works for hive 3.x and earlier versions. For 4.x and later versions,
             // It will go to the catch block directly.
-            throw new QueryExecutionException(response.getErrorMessage)
+            throw new QueryExecutionException(response.getMessage)
           }
           Seq(responseCode.toString)
       }
@@ -1062,18 +1052,7 @@ private[hive] class HiveClientImpl(
     others.foreach { table =>
       val t = table.getTableName
       logDebug(s"Deleting table $t")
-      try {
-        shim.getIndexes(client, "default", t, 255).foreach { index =>
-          shim.dropIndex(client, "default", t, index.getIndexName)
-        }
-        if (!table.isIndexTable) {
-          shim.dropTable(client, "default", t)
-        }
-      } catch {
-        case _: NoSuchMethodError =>
-          // HIVE-18448 Hive 3.0 remove index APIs
-          shim.dropTable(client, "default", t)
-      }
+      shim.dropTable(client, "default", t)
     }
     shim.getAllDatabases(client).filterNot(_ == "default").foreach { db =>
       logDebug(s"Dropping Database: $db")
@@ -1205,7 +1184,7 @@ private[hive] object HiveClientImpl extends Logging {
         if (bucketSpec.sortColumnNames.nonEmpty) {
           hiveTable.setSortCols(
             bucketSpec.sortColumnNames
-              .map(col => new Order(col, HIVE_COLUMN_ORDER_ASC))
+              .map(col => new Order(col, 1))
               .toList
               .asJava
           )
@@ -1404,8 +1383,8 @@ private[hive] object HiveClientImpl extends Logging {
 
   /**
    * Initialize Hive through Configuration.
-   * First try to use getWithoutRegisterFns to initialize to avoid loading all functions,
-   * if there is no such method, fallback to Hive.get.
+   * For Hops Hive 3.0, use getWithFastCheck; fall back to getWithoutRegisterFns or Hive.get
+   * for other versions.
    */
   def getHive(conf: Configuration): Hive = {
     val hiveConf = conf match {
@@ -1415,12 +1394,17 @@ private[hive] object HiveClientImpl extends Logging {
         new HiveConf(conf, classOf[HiveConf])
     }
     val hive = try {
-      Hive.getWithoutRegisterFns(hiveConf)
+      Hive.getWithFastCheck(hiveConf, false)
     } catch {
-      // SPARK-37069: not all Hive versions have the above method (e.g., Hive 2.3.9 has it but
-      // 2.3.8 doesn't), therefore here we fallback when encountering the exception.
       case _: NoSuchMethodError =>
-        Hive.get(hiveConf)
+        try {
+          Hive.getWithoutRegisterFns(hiveConf)
+        } catch {
+          // SPARK-37069: not all Hive versions have the above method (e.g., Hive 2.3.9 has it but
+          // 2.3.8 doesn't), therefore here we fallback when encountering the exception.
+          case _: NoSuchMethodError =>
+            Hive.get(hiveConf)
+        }
     }
 
     // Follow behavior of HIVE-26633 (4.0.0), only apply the max message size when
