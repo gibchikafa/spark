@@ -202,6 +202,21 @@
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-huaweicloud</artifactId>
         </exclusion>
+        <!--
+          hadoop-aliyun is the only thing that reaches org.ini4j:ini4j, through
+          aliyun-java-sdk-core, which uses it to parse the ~/.alibabacloud INI
+          credentials file. ini4j 0.5.4 carries CVE-2022-41404 and the project is
+          dead - 0.5.4 is the last release, from 2015, and no fixed version will
+          ever ship - so the jar can only be removed, not upgraded. Hopsworks
+          exposes S3, GCS and ADLS; nothing in the platform references oss://,
+          so the connector and its SDK chain come out together rather than
+          leaving a half-wired connector whose credential path throws
+          NoClassDefFoundError.
+        -->
+        <exclusion>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-aliyun</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
     <!--

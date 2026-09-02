@@ -283,7 +283,16 @@
       during compilation if the dependency is transitive (e.g. "graphx/" depending on "core/" and
       needing Hadoop classes in the classpath to compile).
     -->
-    <derby.deps.scope>compile</derby.deps.scope>
+    <!-- Derby is the embedded engine behind Spark's *local* Hive metastore. Hopsworks
+         always points at an external metastore, so nothing on a deployed cluster ever
+         starts it, and shipping it only puts derby 10.16.1.1 and CVE-2022-46337 in the
+         assembly. There is no version to move to: the advisory names 10.16.1.2, which
+         was never released, and the next real release, 10.17.1.0, requires Java 21
+         while these images are Java 17. `provided` keeps Derby on the compile and test
+         classpaths - the Hive suites that spin up a local metastore still run - and
+         takes it out of the distribution. The Hive fork dropped it the same way on
+         branch-4.1 (89b88ad507). -->
+    <derby.deps.scope>provided</derby.deps.scope>
     <hadoop.deps.scope>compile</hadoop.deps.scope>
     <huaweicloud.deps.scope>compile</huaweicloud.deps.scope>
     <hive.deps.scope>compile</hive.deps.scope>
@@ -1084,8 +1093,19 @@
         <version>${derby.version}</version>
         <scope>${derby.deps.scope}</scope>
       </dependency>
-      <!-- Transitive of the Hive jars, which pin 2.0.6; 2.0.6.1 is the CVE-2021-33813 fix
-           and the only difference between the two releases. -->
+      <!-- Transitive of hadoop-common; 1.9.4 carries CVE-2025-48734. 1.11.0 is the fix
+           and stays on the 1.x API. -->
+      <dependency>
+        <groupId>commons-beanutils</groupId>
+        <artifactId>commons-beanutils</artifactId>
+        <version>1.11.0</version>
+      </dependency>
+      <!-- 2.0.6.1 is the CVE-2021-33813 fix and the only difference from 2.0.6. The
+           jar reaches the assembly through aliyun-sdk-oss, which pins 2.0.6 outright,
+           so excluding hadoop-aliyun below should take it out entirely; the pin stays
+           because Saxon-HE also declares jdom2 and this costs nothing if that path
+           ever becomes live. (An earlier revision of this comment credited the Hive
+           jars - that was wrong.) -->
       <dependency>
         <groupId>org.jdom</groupId>
         <artifactId>jdom2</artifactId>
