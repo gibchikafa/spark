@@ -132,7 +132,7 @@
     <!-- SPARK-41247: When updating `protobuf.version`, also need to update `protoVersion` in `SparkBuild.scala` -->
     <protobuf.version>4.33.0</protobuf.version>
     <protoc-jar-maven-plugin.version>3.11.4</protoc-jar-maven-plugin.version>
-    <zookeeper.version>3.9.4</zookeeper.version>
+    <zookeeper.version>3.9.5</zookeeper.version>
     <curator.version>5.9.0</curator.version>
     <hive.group>io.hops.hive</hive.group>
     <hive.classifier>core</hive.classifier>
@@ -187,7 +187,7 @@
     <scalafmt.validateOnly>true</scalafmt.validateOnly>
     <scalafmt.changedOnly>true</scalafmt.changedOnly>
     <!-- Should be consistent with SparkBuild.scala and docs -->
-    <fasterxml.jackson.version>2.21.2</fasterxml.jackson.version>
+    <fasterxml.jackson.version>2.21.4</fasterxml.jackson.version>
     <ws.xmlschema.version>2.3.1</ws.xmlschema.version>
     <snappy.version>1.1.10.8</snappy.version>
     <netlib.ludovic.dev.version>3.0.4</netlib.ludovic.dev.version>
@@ -223,7 +223,7 @@
     <bouncycastle.version>1.82</bouncycastle.version>
     <tink.version>1.16.0</tink.version>
     <datasketches.version>6.2.0</datasketches.version>
-    <netty.version>4.2.7.Final</netty.version>
+    <netty.version>4.2.17.Final</netty.version>
     <netty-tcnative.version>2.0.74.Final</netty-tcnative.version>
     <icu4j.version>77.1</icu4j.version>
     <junit.version>6.0.0</junit.version>
@@ -918,7 +918,7 @@
       <dependency>
         <groupId>org.lz4</groupId>
         <artifactId>lz4-java</artifactId>
-        <version>1.8.0</version>
+        <version>1.8.1</version>
       </dependency>
       <dependency>
         <groupId>com.github.luben</groupId>
@@ -1083,6 +1083,13 @@
         <artifactId>derbytools</artifactId>
         <version>${derby.version}</version>
         <scope>${derby.deps.scope}</scope>
+      </dependency>
+      <!-- Transitive of the Hive jars, which pin 2.0.6; 2.0.6.1 is the CVE-2021-33813 fix
+           and the only difference between the two releases. -->
+      <dependency>
+        <groupId>org.jdom</groupId>
+        <artifactId>jdom2</artifactId>
+        <version>2.0.6.1</version>
       </dependency>
       <dependency>
         <groupId>io.dropwizard.metrics</groupId>
