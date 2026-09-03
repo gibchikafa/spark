@@ -214,7 +214,16 @@
           NoClassDefFoundError.
         -->
         <exclusion>
-          <groupId>org.apache.hadoop</groupId>
+          <!--
+          `${hadoop.group}`, not `org.apache.hadoop`: the Hops fork publishes Hadoop
+          under io.hops, which is what the enclosing dependency resolves to. An
+          exclusion whose groupId does not match the coordinate is silently ignored,
+          and this one was, so the connector kept shipping. The two exclusions above
+          have the same bug and are left alone deliberately: fixing them would drop
+          hadoop-cos and hadoop-huaweicloud from the assembly, which is what upstream
+          intends but is a bigger change than a CVE fix.
+          -->
+          <groupId>${hadoop.group}</groupId>
           <artifactId>hadoop-aliyun</artifactId>
         </exclusion>
       </exclusions>
